@@ -53,23 +53,23 @@ class TCP(Connection):
 
     ''' Sender '''
 
-    def send_next_packet_if_possible(self):
-        if self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
-            new_data, new_sequence = self.send_buffer.get(self.mss)
-            self.send_packet(new_data, new_sequence)
-            message = ("Window not full (") + str(self.send_buffer.outstanding()) + (") sent packet: " + str(new_sequence))
-            print message
-
     def send(self,data):
         ''' Send data on the connection. Called by the application. This
             code currently sends all data immediately. '''
         self.send_buffer.put(data)
         print "Data added to buffer."
-
         self.send_next_packet_if_possible()
 
-        # self.send_packet(data,self.sequence)
-        # self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
+    def send_next_packet_if_possible(self):
+        while self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
+            self.restart_timer()
+
+            new_data, new_sequence = self.send_buffer.get(self.mss)
+            self.send_packet(new_data, new_sequence)
+
+            message = ("Window not full (") + str(self.send_buffer.outstanding()) + (") sent packet: " + str(new_sequence))
+            print message
+
 
     def send_packet(self,data,sequence):
         packet = TCPPacket(source_address=self.source_address,
@@ -84,15 +84,27 @@ class TCP(Connection):
         self.transport.send_packet(packet)
 
         # set a timer
-        # if not timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
+        self.start_timer()
 
     def handle_ack(self,packet):
+        self.send_buffer.slide(packet.ack_number)
         self.send_next_packet_if_possible()
         # self.cancel_timer()
 
     def retransmit(self,event):
         ''' Retransmit data. '''
+        self.restart_timer()
+        resend_data, resend_sequence = self.send_buffer.resend()
+        self.send_packet(resend_data, resend_sequence)
         self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
+
+    def restart_timer(self):
+        self.cancel_timer()
+        self.start_timer()
+
+    def start_timer(self):
+        if self.timer == None:
+            self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
 
     def cancel_timer(self):
         ''' Cancel the timer. '''
@@ -107,8 +119,14 @@ class TCP(Connection):
         ''' Handle incoming data. This code currently gives all data to
             the application, regardless of whether it is in order, and sends
             an ACK.'''
-        self.trace("%s (%d) received TCP segment from %d for %d" % (self.node.hostname,packet.destination_address,packet.source_address,packet.sequence))
-        self.app.receive_data(packet.body)
+        self.trace("%s (%d) received TCP segment from %d; Seq: %d, Ack: %d" % (self.node.hostname,packet.destination_address,packet.source_address,packet.sequence,packet.ack_number))
+        self.receive_buffer.put(packet.body, packet.sequence)
+
+        if self.ack == packet.sequence:
+            self.ack += packet.length
+            print "Set Ack to: " + str(self.ack)
+        # SEND DATA TO APPLICATION
+        # self.app.receive_data(packet.body)
         self.send_ack()
 
     def send_ack(self):
