@@ -53,11 +53,12 @@ class TCP(Connection):
 
     ''' Sender '''
 
-    def send_next_packet(self):
-        new_data, new_sequence = self.send_buffer.get(self.mss)
-        self.send_packet(new_data, new_sequence)
-        message = ("Window not full (") + str(self.send_buffer.outstanding()) + (") sent packet: " + str(new_sequence))
-        print message
+    def send_next_packet_if_possible(self):
+        if self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
+            new_data, new_sequence = self.send_buffer.get(self.mss)
+            self.send_packet(new_data, new_sequence)
+            message = ("Window not full (") + str(self.send_buffer.outstanding()) + (") sent packet: " + str(new_sequence))
+            print message
 
     def send(self,data):
         ''' Send data on the connection. Called by the application. This
@@ -65,8 +66,7 @@ class TCP(Connection):
         self.send_buffer.put(data)
         print "Data added to buffer."
 
-        if self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
-            self.send_next_packet()
+        self.send_next_packet_if_possible()
 
         # self.send_packet(data,self.sequence)
         # self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
@@ -84,10 +84,10 @@ class TCP(Connection):
         self.transport.send_packet(packet)
 
         # set a timer
-        # if not 9timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
+        # if not timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
 
     def handle_ack(self,packet):
-        self.send_next_packet()
+        self.send_next_packet_if_possible()
         # self.cancel_timer()
 
     def retransmit(self,event):
