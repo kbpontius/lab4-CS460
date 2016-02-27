@@ -62,7 +62,7 @@ class TCP(Connection):
 
     def send_next_packet_if_possible(self):
         while self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
-            self.restart_timer()
+            # self.restart_timer()
 
             new_data, new_sequence = self.send_buffer.get(self.mss)
             self.send_packet(new_data, new_sequence)
@@ -84,7 +84,7 @@ class TCP(Connection):
         self.transport.send_packet(packet)
 
         # set a timer
-        self.start_timer()
+        # self.start_timer()
 
     def handle_ack(self,packet):
         self.send_buffer.slide(packet.ack_number)
@@ -124,9 +124,10 @@ class TCP(Connection):
 
         if self.ack == packet.sequence:
             self.ack += packet.length
-            print "Set Ack to: " + str(self.ack)
+            print "Set ACK: " + str(self.ack)
         # SEND DATA TO APPLICATION
-        # self.app.receive_data(packet.body)
+        data, last_sequence_number = self.receive_buffer.get()
+        self.app.receive_data(data)
         self.send_ack()
 
     def send_ack(self):
