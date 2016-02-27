@@ -62,7 +62,7 @@ class TCP(Connection):
 
     def send_next_packet_if_possible(self):
         while self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
-            # self.restart_timer()
+            self.restart_timer()
 
             new_data, new_sequence = self.send_buffer.get(self.mss)
             self.send_packet(new_data, new_sequence)
@@ -83,18 +83,17 @@ class TCP(Connection):
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
 
-        # set a timer
-        # self.start_timer()
-
     def handle_ack(self,packet):
         self.send_buffer.slide(packet.ack_number)
         self.send_next_packet_if_possible()
-        # self.cancel_timer()
+
+        if self.send_buffer.available() == 0:
+            self.cancel_timer()
 
     def retransmit(self,event):
         ''' Retransmit data. '''
         self.restart_timer()
-        resend_data, resend_sequence = self.send_buffer.resend()
+        resend_data, resend_sequence = self.send_buffer.resend(self.mss)
         self.send_packet(resend_data, resend_sequence)
         self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
 
@@ -124,7 +123,8 @@ class TCP(Connection):
 
         if self.ack == packet.sequence:
             self.ack += packet.length
-            print "Set ACK: " + str(self.ack)
+            print "Sent ACK: " + str(self.ack)
+
         # SEND DATA TO APPLICATION
         data, last_sequence_number = self.receive_buffer.get()
         self.app.receive_data(data)
