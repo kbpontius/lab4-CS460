@@ -69,19 +69,23 @@ class TCP(Connection):
             self.restart_timer()
 
     def send_packet(self,data,sequence):
+        current_time = Sim.scheduler.current_time()
+
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
                            destination_address=self.destination_address,
                            destination_port=self.destination_port,
                            body=data,
-                           sequence=sequence,ack_number=self.ack)
+                           sequence=sequence,
+                           ack_number=self.ack,
+                           sent_time=current_time)
 
         # send the packet
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
 
     def handle_ack(self,packet):
-        self.trace("ACK RECEIVED: %d" % packet.ack_number)
+        self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, Sim.scheduler.current_time() - packet.sent_time))
         self.send_buffer.slide(packet.ack_number)
         self.send_next_packet_if_possible()
         self.restart_timer()
@@ -135,15 +139,17 @@ class TCP(Connection):
         # SEND DATA TO APPLICATION
         data, last_sequence_number = self.receive_buffer.get()
         self.app.receive_data(data)
-        self.send_ack()
+        self.send_ack(current_time=packet.sent_time)
 
-    def send_ack(self):
+    def send_ack(self, current_time):
         ''' Send an ack. '''
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
                            destination_address=self.destination_address,
                            destination_port=self.destination_port,
-                           sequence=self.sequence,ack_number=self.ack)
+                           sequence=self.sequence,
+                           ack_number=self.ack,
+                           sent_time=current_time)
         # send the packet
         self.trace("%s (%d) sending TCP ACK to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.ack_number))
         self.transport.send_packet(packet)
