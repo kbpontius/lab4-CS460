@@ -6,12 +6,25 @@ from src.connection import Connection
 from src.tcppacket import TCPPacket
 from src.buffer import SendBuffer,ReceiveBuffer
 
+
 class TCP(Connection):
     ''' A TCP connection between two hosts.'''
-    def __init__(self,transport,source_address,source_port,
-                 destination_address,destination_port,app=None,window=1000):
-        Connection.__init__(self,transport,source_address,source_port,
-                            destination_address,destination_port,app)
+    def __init__(self,transport,source_address,source_port,destination_address,destination_port,app=None,window=1000):
+        Connection.__init__(self,transport,source_address,source_port, destination_address,destination_port,app)
+
+        ### RTO Timer Properties
+        self.rtt_initialized = False
+        self.rto = None
+        self.srtt = None
+        self.rttvar = None
+        self.K = 4
+        self.initialize_timer()
+
+        # RTT Cap Seconds
+        self.max_rtt = 60
+
+        self.alpha = 0.125
+        self.beta = 0.25
 
         ### Sender functionality
 
@@ -37,6 +50,37 @@ class TCP(Connection):
         # ack number to send; represents the largest in-order sequence
         # number not yet received
         self.ack = 0
+
+    def initialize_timer(self):
+        self.rto = 3
+
+    def calculate_rtt(self, rtt):
+        if self.rtt_initialized is False:
+            self.calculate_first_rtt(rtt)
+            self.rtt_initialized = True
+        else:
+            self.calculate_ongoing_rtt(rtt)
+
+    def calculate_first_rtt(self, new_rtt):
+        self.srtt = new_rtt
+        self.rttvar = new_rtt / 2
+        self.rto = self.srtt + self.K * self.rttvar
+
+    def calculate_ongoing_rtt(self, new_rtt):
+        self.rttvar = (1 - self.beta) * self.rttvar + self.beta * abs(self.srtt - new_rtt)
+        self.srtt = (1 - self.alpha) * self.srtt + self.alpha * new_rtt
+        self.rto = self.srtt + self.K * self.rttvar
+        self.validate_timer()
+
+    def backoff_timer(self):
+        self.rto *= 2
+        self.validate_timer()
+
+    def validate_timer(self):
+        if self.rto < 1:
+            self.rto = 1
+        elif self.rto > self.max_rtt:
+            self.rto = self.max_rtt
 
     def trace(self,message):
         ''' Print debugging messages. '''
@@ -85,14 +129,18 @@ class TCP(Connection):
         self.transport.send_packet(packet)
 
     def handle_ack(self,packet):
-        self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, Sim.scheduler.current_time() - packet.sent_time))
+        rtt = Sim.scheduler.current_time() - packet.sent_time
+        self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, rtt))
         self.send_buffer.slide(packet.ack_number)
         self.send_next_packet_if_possible()
+        self.calculate_rtt(rtt)
         self.restart_timer()
 
     def retransmit(self,event):
         ''' Retransmit data. '''
         self.trace("WARNING: Timer expired.")
+
+        self.backoff_timer()
         self.restart_timer(timer_expired=True)
         resend_data, resend_sequence = self.send_buffer.resend(self.mss)
         self.send_packet(resend_data, resend_sequence)
@@ -112,13 +160,12 @@ class TCP(Connection):
         if timer_expired == False:
             self.cancel_timer()
 
-        self.timer = Sim.scheduler.add(delay=self.timeout, event='retransmit', handler=self.retransmit)
+        self.timer = Sim.scheduler.add(delay=self.rto, event='retransmit', handler=self.retransmit)
 
     def cancel_timer(self):
         ''' Cancel the timer. '''
         if not self.timer:
             return
-
         self.trace("WARNING: Cancelling timer.")
         Sim.scheduler.cancel(self.timer)
         self.timer = None
