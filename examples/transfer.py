@@ -22,7 +22,7 @@ class AppHandler(object):
         self.f = open("%s/%s" % (self.directory,self.filename),'w')
 
     def receive_data(self,data):
-        Sim.trace('AppHandler',"application got %d bytes" % (len(data)))
+        # Sim.trace('AppHandler',"application got %d bytes" % (len(data)))
         self.f.write(data)
         self.f.flush()
 
@@ -38,7 +38,7 @@ class Main(object):
                                        version = "%prog 0.1")
 
         parser.add_option("-f","--filename",type="str",dest="filename",
-                          default='test.txt',
+                          default='internet-architecture.pdf',
                           help="filename to send")
 
         parser.add_option("-l","--loss",type="float",dest="loss",
