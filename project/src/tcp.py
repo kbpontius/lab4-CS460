@@ -43,6 +43,12 @@ class TCP(Connection):
         # timeout duration in seconds
         self.timeout = 1
 
+        ### Congestion Control
+        self.threshold = 100000
+        self.ack_1 = -1
+        self.ack_2 = -1
+        self.ack_3 = -1
+
         ### Receiver functionality
 
         # receive buffer
@@ -50,6 +56,33 @@ class TCP(Connection):
         # ack number to send; represents the largest in-order sequence
         # number not yet received
         self.ack = 0
+
+    ### Congestion Control Methods
+
+    def restart_cwnd(self):
+        self.window = self.mss
+
+    def slowstart_incremenet_cwnd(self, bytes_acknowledged):
+        self.window += bytes_acknowledged
+
+        threshold_reached = self.window >= self.threshold
+        return threshold_reached
+
+    def additiveincrease_increment_cwnd(self, bytes_acknowledged):
+        self.window += (self.mss * bytes_acknowledged/ self.window)
+
+    def is_fast_retransmit(self, ack_num):
+        self.ack_3 = self.ack_2
+        self.ack_2 = self.ack_1
+        self.ack_1 = ack_num
+
+        return self.ack_1 == self.ack_2 and self.ack_1 == self.ack_3
+
+    def execute_loss_event(self):
+        self.threshold = max(self.window / 2, self.mss)
+        self.window = self.mss
+        
+    ### General Methods
 
     def initialize_timer(self):
         self.rto = 3
