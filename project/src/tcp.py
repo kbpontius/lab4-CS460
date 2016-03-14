@@ -85,6 +85,7 @@ class TCP(Connection):
             self.additive_increase_total -= self.mss
             return self.mss
         else:
+            self.trace("ADDITIVE INCREASE STORED: %d" % increase)
             return 0
 
 
@@ -103,6 +104,7 @@ class TCP(Connection):
     def execute_loss_event(self):
         self.threshold = max(self.window / 2, self.mss)
         self.window = self.mss
+        self.additive_increase_total = 0
         self.trace("NEW THRESHOLD: %d" % self.threshold)
 
     ### General Methods
@@ -186,6 +188,9 @@ class TCP(Connection):
 
     # TODO: Reset timer when all packets are sent and new data is received.
     def handle_ack(self,packet):
+        acked_byte_count = packet.ack_number - self.sequence
+        self.sequence = packet.ack_number
+
         self.trace("ACK Received: %d" % packet.ack_number)
 
         if self.is_fast_retransmit(packet.ack_number):
@@ -194,9 +199,9 @@ class TCP(Connection):
             return
 
         if self.is_threshold_reached():
-            self.additiveincrease_increment_cwnd(packet.ack_number)
+            self.additiveincrease_increment_cwnd(acked_byte_count)
         else:
-            self.slowstart_increment_cwnd(packet.ack_number)
+            self.slowstart_increment_cwnd(acked_byte_count)
 
         rtt = Sim.scheduler.current_time() - packet.sent_time
         self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, rtt))
@@ -215,7 +220,6 @@ class TCP(Connection):
         self.send_packet(resend_data, resend_sequence)
 
         # Reset for slow start.
-        self.window = self.mss
         self.reset_fast_retransmit_acks()
         self.execute_loss_event()
         self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
