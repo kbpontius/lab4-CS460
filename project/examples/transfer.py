@@ -51,7 +51,7 @@ class Main(object):
 
     def diff(self):
         args = ['diff','-u',self.filename,self.directory+'/'+self.filename]
-        result = subprocess.Popen(args,stdout = subprocess.PIPE).communicate()[0]
+        result = subprocess.Popen(args, stdout = subprocess.PIPE).communicate()[0]
         print
         if not result:
             print "File transfer correct!"
@@ -84,8 +84,8 @@ class Main(object):
         a = AppHandler(self.filename)
 
         # setup connection
-        c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a,window=3000)
-        c2 = TCP(t2,n2.get_address('n1'),1,n1.get_address('n2'),1,a,window=3000)
+        c1 = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a)
+        c2 = TCP(t2,n2.get_address('n1'),1,n1.get_address('n2'),1,a)
 
         # send a file
         with open(self.filename,'r') as f:
