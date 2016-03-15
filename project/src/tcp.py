@@ -53,6 +53,8 @@ class TCP(Connection):
         self.ack_2 = -1
         self.ack_3 = -1
 
+        Sim.set_debug("Link")
+
         ### Receiver functionality
 
         # receive buffer
@@ -60,6 +62,10 @@ class TCP(Connection):
         # ack number to send; represents the largest in-order sequence
         # number not yet received
         self.ack = 0
+
+        ### FILE WRITING
+        sys.stdout = open('output.txt', 'w')
+        print "# Time (seconds) Sequence (number) Dropped (0 or 1)"
 
     ### Congestion Control Methods
 
@@ -89,7 +95,7 @@ class TCP(Connection):
             return 0
 
 
-    def reset_fast_retransmit_acks(self):
+    def reset_fastretransmit_acks(self):
         self.ack_1 = -1
         self.ack_2 = -1
         self.ack_3 = -1
@@ -142,7 +148,11 @@ class TCP(Connection):
 
     def trace(self,message):
         ''' Print debugging messages. '''
-        Sim.trace("TCP",message)
+        # Sim.trace("TCP",message)
+
+    def plot(self, packet):
+        message = "%i 0" % (packet.sequence)
+        Sim.trace("TCP", message)
 
     def receive_packet(self,packet):
         ''' Receive a packet from the network layer. '''
@@ -185,6 +195,7 @@ class TCP(Connection):
         # send the packet
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
+        self.plot(packet)
 
     # TODO: Reset timer when all packets are sent and new data is received.
     def handle_ack(self,packet):
@@ -220,9 +231,11 @@ class TCP(Connection):
         self.send_packet(resend_data, resend_sequence)
 
         # Reset for slow start.
-        self.reset_fast_retransmit_acks()
+        self.reset_fastretransmit_acks()
         self.execute_loss_event()
-        self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
+
+        if not event:
+            self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
 
     def restart_timer(self, timer_expired = False):
         # self.trace("WARNING: Restarting timer.")

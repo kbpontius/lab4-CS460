@@ -54,9 +54,9 @@ class Main(object):
         result = subprocess.Popen(args, stdout = subprocess.PIPE).communicate()[0]
         print
         if not result:
-            print "File transfer correct!"
+            print "# File transfer correct!"
         else:
-            print "File transfer failed. Here is the diff:"
+            print "# File transfer failed. Here is the diff:"
             print
             print result
 
