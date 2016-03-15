@@ -31,7 +31,7 @@ class TCP(Connection):
         # send buffer
         self.send_buffer = SendBuffer()
         # maximum segment size, in bytes
-        self.mss = 1000
+        self.mss = 100
         # send window; represents the total number of bytes that may
         # be outstanding at one time
         self.window = self.mss
@@ -45,7 +45,7 @@ class TCP(Connection):
 
         ### Congestion Control
 
-        self.threshold = 100000
+        self.threshold = 16000
         self.additive_increase_total = 0
 
         # Fast Retransmit ACKs
@@ -64,8 +64,17 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        sys.stdout = open('output.txt', 'w')
-        print "# Time (seconds) Sequence (number) Dropped (0 or 1)"
+        # sys.stdout = open('output.txt', 'w')
+        # print "# Time (seconds) Sequence (number) Dropped (0 or 1)"
+
+    ### Global Methods
+    def trace(self,message):
+        ''' Print debugging messages. '''
+        Sim.trace("TCP",message)
+
+    def plot(self, packet):
+        message = "%i 0" % (packet.sequence)
+        # Sim.trace("TCP", message)
 
     ### Congestion Control Methods
 
@@ -145,14 +154,6 @@ class TCP(Connection):
             self.rto = 1
         elif self.rto > self.max_rtt:
             self.rto = self.max_rtt
-
-    def trace(self,message):
-        ''' Print debugging messages. '''
-        # Sim.trace("TCP",message)
-
-    def plot(self, packet):
-        message = "%i 0" % (packet.sequence)
-        Sim.trace("TCP", message)
 
     def receive_packet(self,packet):
         ''' Receive a packet from the network layer. '''

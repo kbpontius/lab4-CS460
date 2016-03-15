@@ -65,10 +65,9 @@ class Plotter:
         scatter(self.ackX,self.ackY,marker='s',s=0.2)
         xlabel('Time (seconds)')
         ylabel('(Sequence Number / 1000) Mod 1500')
+        # xlim([self.min_time,3])
         xlim([self.min_time,self.max_time])
         savefig('sequence.png')
-
-
 
 def parse_options():
         # parse options
