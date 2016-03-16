@@ -32,7 +32,7 @@ class Link(object):
         # drop packet due to random loss
         if self.loss > 0 and random.random() < self.loss:
             if self.address == 1:
-                self.trace("%i 1" % (packet.sequence))
+                self.trace("%i 1 0" % (packet.sequence))
             return
         packet.enter_queue = Sim.scheduler.current_time()
         if len(self.queue) == 0 and not self.busy:

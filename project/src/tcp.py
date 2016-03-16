@@ -31,7 +31,7 @@ class TCP(Connection):
         # send buffer
         self.send_buffer = SendBuffer()
         # maximum segment size, in bytes
-        self.mss = 100
+        self.mss = 1000
         # send window; represents the total number of bytes that may
         # be outstanding at one time
         self.window = self.mss
@@ -42,10 +42,14 @@ class TCP(Connection):
         self.timer = None
         # timeout duration in seconds
         self.timeout = 1
+        # is_retransmitting prevents more duplicate ACKs from triggering another send.
+        self.is_retransmitting = False
+
+        self.force_drop = True
 
         ### Congestion Control
 
-        self.threshold = 16000
+        self.threshold = 32000
         self.additive_increase_total = 0
 
         # Fast Retransmit ACKs
@@ -72,8 +76,8 @@ class TCP(Connection):
         ''' Print debugging messages. '''
         Sim.trace("TCP",message)
 
-    def plot(self, packet):
-        message = "%i 0" % (packet.sequence)
+    def plot(self, packet, isACK = False):
+        message = "%i 0 %d" % (packet.sequence, isACK)
         # Sim.trace("TCP", message)
 
     ### Congestion Control Methods
@@ -183,7 +187,7 @@ class TCP(Connection):
 
     def send_packet(self,data,sequence):
         current_time = Sim.scheduler.current_time()
-
+        self.reset_fastretransmit_acks()
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
                            destination_address=self.destination_address,
@@ -193,22 +197,32 @@ class TCP(Connection):
                            ack_number=self.ack,
                            sent_time=current_time)
 
-        # send the packet
+        if sequence == 16000 and self.force_drop:
+            self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+            self.force_drop = False
+            return
+
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
         self.plot(packet)
 
     # TODO: Reset timer when all packets are sent and new data is received.
     def handle_ack(self,packet):
+        self.plot(packet, isACK=True)
+
         acked_byte_count = packet.ack_number - self.sequence
-        self.sequence = packet.ack_number
 
-        self.trace("ACK Received: %d" % packet.ack_number)
-
-        if self.is_fast_retransmit(packet.ack_number):
+        if self.is_fast_retransmit(packet.ack_number) and self.is_retransmitting == False:
+            self.sequence = packet.ack_number
+            self.is_retransmitting = True
             self.trace("PACKETS 1: %d; 2: %d; 3: %d" % (self.ack_1, self.ack_2, self.ack_3))
             self.retransmit(None)
             return
+        elif self.is_retransmitting and self.sequence == packet.sequence:
+            self.trace("---> REJECTED PACKET: %d" % packet.sequence)
+            return
+
+        self.is_retransmitting = False
 
         if self.is_threshold_reached():
             self.additiveincrease_increment_cwnd(acked_byte_count)
@@ -224,7 +238,7 @@ class TCP(Connection):
 
     def retransmit(self,event):
         ''' Retransmit data. '''
-        # self.trace("WARNING: Timer expired.")
+        self.trace(">>>> WARNING: Timer expired.")
 
         self.backoff_timer()
         self.restart_timer(timer_expired = True)
@@ -277,15 +291,15 @@ class TCP(Connection):
         data, last_sequence_number = self.receive_buffer.get()
         self.app.receive_data(data)
 
-        self.send_ack(current_time=packet.sent_time)
+        self.send_ack(current_time=packet.sent_time, packet_sequence=packet.sequence)
 
-    def send_ack(self, current_time):
+    def send_ack(self, current_time, packet_sequence):
         ''' Send an ack. '''
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
                            destination_address=self.destination_address,
                            destination_port=self.destination_port,
-                           sequence=self.sequence,
+                           sequence=packet_sequence,
                            ack_number=self.ack,
                            sent_time=current_time)
 
