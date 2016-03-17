@@ -4,5 +4,5 @@ n1 n2
 n2 n1
 
 # link configuration
-n1 n2 1Gbps 200ms
-n2 n1 1Gbps 200ms
+n1 n2 1Mbps 200ms
+n2 n1 1Mbps 200ms

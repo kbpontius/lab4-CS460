@@ -28,6 +28,8 @@ class TCP(Connection):
 
         ### Sender functionality
 
+        self.transmission_finished = False
+
         # send buffer
         self.send_buffer = SendBuffer()
         # maximum segment size, in bytes
@@ -68,17 +70,23 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        # sys.stdout = open('output.txt', 'w')
-        # print "# Time (seconds) Sequence (number) Dropped (0 or 1)"
+        self.write_to_file = True
+
+        if self.write_to_file:
+            sys.stdout = open('output.txt', 'w')
+            print "# Time (seconds) Sequence (number) Dropped (0 or 1)"
 
     ### Global Methods
     def trace(self,message):
         ''' Print debugging messages. '''
-        Sim.trace("TCP",message)
+        if not self.write_to_file:
+            Sim.trace("TCP",message)
 
-    def plot(self, packet, isACK = False):
-        message = "%i 0 %d" % (packet.sequence, isACK)
-        # Sim.trace("TCP", message)
+    def plot(self, sequence_number, isACK = False, dropped=False):
+        message = "%i %i %d" % (sequence_number, dropped, isACK)
+
+        if self.write_to_file:
+            Sim.trace("TCP", message)
 
     ### Congestion Control Methods
 
@@ -168,6 +176,13 @@ class TCP(Connection):
             # handle data
             self.handle_data(packet)
 
+    def half_if_finished(self):
+        if self.send_buffer.available() == 0 and self.send_buffer.outstanding() == 0:
+            self.trace("-------> ENDING <-------")
+            self.cancel_timer()
+            return True
+        return False
+
     ''' Sender '''
 
     def send(self,data):
@@ -178,16 +193,19 @@ class TCP(Connection):
         self.send_next_packet_if_possible()
 
     def send_next_packet_if_possible(self):
-        while self.send_buffer.available() > 0 and self.send_buffer.outstanding() < self.window:
+        if self.half_if_finished():
+            return
+
+        while self.send_buffer.available() > 0 \
+                and self.send_buffer.outstanding() < self.window:
             new_data, new_sequence = self.send_buffer.get(self.mss)
             self.send_packet(new_data, new_sequence)
-            # message = ("Window not full (") + str(self.send_buffer.outstanding()) + (") sent packet: " + str(new_sequence))
-            # self.trace(message)
             self.restart_timer()
 
     def send_packet(self,data,sequence):
         current_time = Sim.scheduler.current_time()
         self.reset_fastretransmit_acks()
+
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
                            destination_address=self.destination_address,
@@ -199,30 +217,33 @@ class TCP(Connection):
 
         if sequence == 16000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+            self.plot(packet.sequence,dropped=True)
             self.force_drop = False
             return
 
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
-        self.plot(packet)
+        self.plot(packet.sequence)
 
-    # TODO: Reset timer when all packets are sent and new data is received.
     def handle_ack(self,packet):
-        self.plot(packet, isACK=True)
+        self.send_buffer.slide(packet.ack_number)
+
+        if self.half_if_finished():
+            return
+
+        self.plot(packet.ack_number, isACK=True)
 
         acked_byte_count = packet.ack_number - self.sequence
 
-        if self.is_fast_retransmit(packet.ack_number) and self.is_retransmitting == False:
+        if self.is_retransmitting is False and self.is_fast_retransmit(packet.ack_number):
             self.sequence = packet.ack_number
             self.is_retransmitting = True
             self.trace("PACKETS 1: %d; 2: %d; 3: %d" % (self.ack_1, self.ack_2, self.ack_3))
             self.retransmit(None)
             return
-        elif self.is_retransmitting and self.sequence == packet.sequence:
-            self.trace("---> REJECTED PACKET: %d" % packet.sequence)
+        elif self.is_retransmitting and acked_byte_count > 0:
+            self.is_retransmitting = False
             return
-
-        self.is_retransmitting = False
 
         if self.is_threshold_reached():
             self.additiveincrease_increment_cwnd(acked_byte_count)
@@ -231,13 +252,18 @@ class TCP(Connection):
 
         rtt = Sim.scheduler.current_time() - packet.sent_time
         self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, rtt))
-        self.send_buffer.slide(packet.ack_number)
         self.send_next_packet_if_possible()
         self.calculate_rtt(rtt)
-        self.restart_timer()
+
+        if self.send_buffer.available() >= 0 and self.send_buffer.outstanding() > 0:
+            self.restart_timer()
+        else:
+            self.cancel_timer()
 
     def retransmit(self,event):
-        ''' Retransmit data. '''
+        if self.half_if_finished():
+            return
+
         self.trace(">>>> WARNING: Timer expired.")
 
         self.backoff_timer()
@@ -272,7 +298,7 @@ class TCP(Connection):
         ''' Cancel the timer. '''
         if not self.timer:
             return
-        # self.trace("WARNING: Cancelling timer.")
+        self.trace("WARNING: Cancelling timer.")
         Sim.scheduler.cancel(self.timer)
         self.timer = None
 
@@ -282,13 +308,9 @@ class TCP(Connection):
         self.trace("%s (%d) received TCP segment from %d; Seq: %d, Ack: %d" % (self.node.hostname,packet.destination_address,packet.source_address,packet.sequence,packet.ack_number))
         self.receive_buffer.put(packet.body, packet.sequence)
 
-        if self.ack == packet.sequence:
-            self.ack += packet.length
-        else:
-            self.trace("OUT-OF-ORDER DATA: Sequence # - %d" % packet.sequence)
-
         # SEND DATA TO APPLICATION
         data, last_sequence_number = self.receive_buffer.get()
+        self.ack = last_sequence_number + len(data)
         self.app.receive_data(data)
 
         self.send_ack(current_time=packet.sent_time, packet_sequence=packet.sequence)
