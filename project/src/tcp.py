@@ -52,6 +52,7 @@ class TCP(Connection):
 
         ### Congestion Control
 
+        self.restarting_slow_start = False
         self.threshold = 100000
         self.additive_increase_total = 0
 
@@ -69,7 +70,7 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_file = False
+        self.write_to_file = True
 
         if self.write_to_file:
             sys.stdout = open('output.txt', 'w')
@@ -94,6 +95,12 @@ class TCP(Connection):
         return self.window >= self.threshold
 
     def slowstart_increment_cwnd(self, bytes_acknowledged):
+        self.trace("AI -> BYTES ACKed: %d" % bytes_acknowledged)
+
+        if self.restarting_slow_start:
+            self.restarting_slow_start = False
+            return
+
         self.window += bytes_acknowledged
         self.trace("Window (Slow Start) == %d" % self.window)
 
@@ -131,6 +138,8 @@ class TCP(Connection):
         self.threshold = max(self.window / 2, self.mss)
         self.window = self.mss
         self.additive_increase_total = 0
+        self.restarting_slow_start = True
+        self.trace("NEW WINDOW: %d" % self.window)
         self.trace("NEW THRESHOLD: %d" % self.threshold)
 
     ### General Methods
@@ -213,7 +222,7 @@ class TCP(Connection):
                            ack_number=self.ack,
                            sent_time=current_time)
 
-        if sequence == 32000 and self.force_drop:
+        if sequence == 10000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
             self.plot(packet.sequence,dropped=True)
             self.force_drop = False
