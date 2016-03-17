@@ -53,7 +53,7 @@ class TCP(Connection):
         ### Congestion Control
 
         self.restarting_slow_start = False
-        self.threshold = 100000
+        self.threshold = 16000
         self.additive_increase_total = 0
 
         # Fast Retransmit ACKs
@@ -101,7 +101,7 @@ class TCP(Connection):
             self.restarting_slow_start = False
             return
 
-        self.window += bytes_acknowledged
+        self.window += min(bytes_acknowledged, self.window / 2)
         self.trace("Window (Slow Start) == %d" % self.window)
 
     def additiveincrease_increment_cwnd(self, bytes_acknowledged):
@@ -222,7 +222,15 @@ class TCP(Connection):
                            ack_number=self.ack,
                            sent_time=current_time)
 
-        if sequence == 10000 and self.force_drop:
+        if sequence == 32000 and self.force_drop:
+            self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+            self.plot(packet.sequence,dropped=True)
+            return
+        elif sequence == 40000 and self.force_drop:
+            self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+            self.plot(packet.sequence,dropped=True)
+            return
+        elif sequence == 41000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
             self.plot(packet.sequence,dropped=True)
             self.force_drop = False
