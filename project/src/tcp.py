@@ -22,6 +22,7 @@ class TCP(Connection):
 
         # RTT Cap Seconds
         self.max_rtt = 60
+        self.min_rtt = 1
 
         self.alpha = 0.125
         self.beta = 0.25
@@ -51,13 +52,11 @@ class TCP(Connection):
 
         ### Congestion Control
 
-        self.threshold = 32000
+        self.threshold = 100000
         self.additive_increase_total = 0
 
         # Fast Retransmit ACKs
-        self.ack_1 = -1
-        self.ack_2 = -1
-        self.ack_3 = -1
+        self.retransmit_acks = [-1] * 3
 
         Sim.set_debug("Link")
 
@@ -70,11 +69,11 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_file = True
+        self.write_to_file = False
 
         if self.write_to_file:
             sys.stdout = open('output.txt', 'w')
-            print "# Time (seconds) Sequence (number) Dropped (0 or 1)"
+            print "# Time (seconds) Sequence (number) Dropped (0 or 1) ACK (0 or 1)"
 
     ### Global Methods
     def trace(self,message):
@@ -103,7 +102,7 @@ class TCP(Connection):
         self.window += additive_increase
         self.trace("Window (AI) == %d" % self.window)
 
-    # Add up increase until it divides by self.mss (1000), then return that amount.
+    # Add up increase until it's >= self.mss (1000), then return that amount.
     def get_additive_increase(self, bytes_acknowledged):
         increase = (self.mss * bytes_acknowledged / self.window)
         self.additive_increase_total += increase
@@ -117,16 +116,16 @@ class TCP(Connection):
 
 
     def reset_fastretransmit_acks(self):
-        self.ack_1 = -1
-        self.ack_2 = -1
-        self.ack_3 = -1
+        self.retransmit_acks = [-1] * 3
 
     def is_fast_retransmit(self, ack_num):
-        self.ack_3 = self.ack_2
-        self.ack_2 = self.ack_1
-        self.ack_1 = ack_num
+        self.retransmit_acks[2] = self.retransmit_acks[1]
+        self.retransmit_acks[1] = self.retransmit_acks[0]
+        self.retransmit_acks[0] = ack_num
 
-        return self.ack_1 == self.ack_2 and self.ack_1 == self.ack_3
+        self.trace("FAST RETRANSMIT: %i, %i, %i" % (self.retransmit_acks[0], self.retransmit_acks[1], self.retransmit_acks[2]))
+
+        return self.retransmit_acks[0] == self.retransmit_acks[1] and self.retransmit_acks[0] == self.retransmit_acks[2]
 
     def execute_loss_event(self):
         self.threshold = max(self.window / 2, self.mss)
@@ -162,8 +161,8 @@ class TCP(Connection):
         self.validate_timer()
 
     def validate_timer(self):
-        if self.rto < 1:
-            self.rto = 1
+        if self.rto < self.min_rtt:
+            self.rto = self.min_rtt
         elif self.rto > self.max_rtt:
             self.rto = self.max_rtt
 
@@ -176,7 +175,7 @@ class TCP(Connection):
             # handle data
             self.handle_data(packet)
 
-    def half_if_finished(self):
+    def halt_if_finished(self):
         if self.send_buffer.available() == 0 and self.send_buffer.outstanding() == 0:
             self.trace("-------> ENDING <-------")
             self.cancel_timer()
@@ -193,7 +192,7 @@ class TCP(Connection):
         self.send_next_packet_if_possible()
 
     def send_next_packet_if_possible(self):
-        if self.half_if_finished():
+        if self.halt_if_finished():
             return
 
         while self.send_buffer.available() > 0 \
@@ -204,7 +203,6 @@ class TCP(Connection):
 
     def send_packet(self,data,sequence):
         current_time = Sim.scheduler.current_time()
-        self.reset_fastretransmit_acks()
 
         packet = TCPPacket(source_address=self.source_address,
                            source_port=self.source_port,
@@ -215,7 +213,7 @@ class TCP(Connection):
                            ack_number=self.ack,
                            sent_time=current_time)
 
-        if sequence == 16000 and self.force_drop:
+        if sequence == 32000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
             self.plot(packet.sequence,dropped=True)
             self.force_drop = False
@@ -226,42 +224,44 @@ class TCP(Connection):
         self.plot(packet.sequence)
 
     def handle_ack(self,packet):
+        rtt = Sim.scheduler.current_time() - packet.sent_time
+        self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, rtt))
         self.send_buffer.slide(packet.ack_number)
 
-        if self.half_if_finished():
+        if self.halt_if_finished():
             return
 
         self.plot(packet.ack_number, isACK=True)
 
         acked_byte_count = packet.ack_number - self.sequence
+        self.sequence = packet.ack_number
 
         if self.is_retransmitting is False and self.is_fast_retransmit(packet.ack_number):
-            self.sequence = packet.ack_number
             self.is_retransmitting = True
-            self.trace("PACKETS 1: %d; 2: %d; 3: %d" % (self.ack_1, self.ack_2, self.ack_3))
+            self.trace("PACKETS 1: %d; 2: %d; 3: %d" % (self.retransmit_acks[0], self.retransmit_acks[1], self.retransmit_acks[2]))
             self.retransmit(None)
             return
-        elif self.is_retransmitting and acked_byte_count > 0:
-            self.is_retransmitting = False
+        elif self.is_retransmitting and acked_byte_count is 0:
             return
 
+        self.is_retransmitting = False
+
         if self.is_threshold_reached():
+            self.trace("---> ACKED BYTE COUNT: %d" % acked_byte_count)
             self.additiveincrease_increment_cwnd(acked_byte_count)
         else:
             self.slowstart_increment_cwnd(acked_byte_count)
 
-        rtt = Sim.scheduler.current_time() - packet.sent_time
-        self.trace("ACK RECEIVED: %d; RTT: %s" % (packet.ack_number, rtt))
         self.send_next_packet_if_possible()
         self.calculate_rtt(rtt)
 
-        if self.send_buffer.available() >= 0 and self.send_buffer.outstanding() > 0:
+        if self.send_buffer.available() >= 0 or self.send_buffer.outstanding() > 0:
             self.restart_timer()
         else:
             self.cancel_timer()
 
     def retransmit(self,event):
-        if self.half_if_finished():
+        if self.halt_if_finished():
             return
 
         self.trace(">>>> WARNING: Timer expired.")
@@ -279,7 +279,7 @@ class TCP(Connection):
             self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))
 
     def restart_timer(self, timer_expired = False):
-        # self.trace("WARNING: Restarting timer.")
+        self.trace("WARNING: Restarting timer.")
 
         if self.send_buffer.available() == 0 and self.send_buffer.outstanding() == 0:
             self.cancel_timer()
@@ -298,7 +298,7 @@ class TCP(Connection):
         ''' Cancel the timer. '''
         if not self.timer:
             return
-        self.trace("WARNING: Cancelling timer.")
+        # self.trace("WARNING: Cancelling timer.")
         Sim.scheduler.cancel(self.timer)
         self.timer = None
 
