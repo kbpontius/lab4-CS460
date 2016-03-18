@@ -61,6 +61,9 @@ class TCP(Connection):
 
         Sim.set_debug("Link")
 
+        ### TCP Reno Fast-Restart
+        self.use_reno = False
+
         ### Receiver functionality
 
         # receive buffer
@@ -101,7 +104,7 @@ class TCP(Connection):
             self.restarting_slow_start = False
             return
 
-        self.window += min(bytes_acknowledged, self.window / 2)
+        self.window += min(bytes_acknowledged, self.window)
         self.trace("Window (Slow Start) == %d" % self.window)
 
     def additiveincrease_increment_cwnd(self, bytes_acknowledged):
@@ -134,9 +137,14 @@ class TCP(Connection):
 
         return self.retransmit_acks[0] == self.retransmit_acks[1] and self.retransmit_acks[0] == self.retransmit_acks[2]
 
-    def execute_loss_event(self):
+    def execute_loss_event(self, ack_loss_event=False):
         self.threshold = max(self.window / 2, self.mss)
-        self.window = self.mss
+
+        if ack_loss_event and self.use_reno:
+            self.window /= 2
+        else:
+            self.window = self.mss
+
         self.additive_increase_total = 0
         self.restarting_slow_start = True
         self.trace("NEW WINDOW: %d" % self.window)
@@ -256,7 +264,7 @@ class TCP(Connection):
         if self.is_retransmitting is False and self.is_fast_retransmit(packet.ack_number):
             self.is_retransmitting = True
             self.trace("PACKETS 1: %d; 2: %d; 3: %d" % (self.retransmit_acks[0], self.retransmit_acks[1], self.retransmit_acks[2]))
-            self.retransmit(None)
+            self.retransmit(None,ack_loss_event=True)
             return
         elif self.is_retransmitting and acked_byte_count is 0:
             return
@@ -277,20 +285,20 @@ class TCP(Connection):
         else:
             self.cancel_timer()
 
-    def retransmit(self,event):
+    def retransmit(self,event,ack_loss_event=False):
         if self.halt_if_finished():
             return
 
         self.trace(">>>> WARNING: Timer expired.")
 
         self.backoff_timer()
-        self.restart_timer(timer_expired = True)
+        self.restart_timer(timer_expired=True)
         resend_data, resend_sequence = self.send_buffer.resend(self.mss)
         self.send_packet(resend_data, resend_sequence)
 
         # Reset for slow start.
         self.reset_fastretransmit_acks()
-        self.execute_loss_event()
+        self.execute_loss_event(ack_loss_event=ack_loss_event)
 
         if not event:
             self.trace("%s (%d) retransmission timer fired" % (self.node.hostname,self.source_address))

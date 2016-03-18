@@ -64,11 +64,11 @@ class Plotter:
     def plot(self):            
         scatter(self.dropX,self.dropY,marker='x',s=100)
         scatter(self.x,self.y,marker='s',s=5)
-        scatter(self.ackX,self.ackY,marker='s',s=0.2)
+        scatter(self.ackX,self.ackY,marker='s',s=0.3)
         xlabel('Time (seconds)')
         ylabel('(Sequence Number / 1000) Mod 50')
-        xlim([self.min_time,5])
-        # xlim([self.min_time,self.max_time])
+        # xlim([self.min_time,2])
+        xlim([self.min_time,self.max_time])
         savefig('sequence.png')
 
 def parse_options():
