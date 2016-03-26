@@ -59,9 +59,6 @@ class TCP(Connection):
         # Fast Retransmit ACKs
         self.retransmit_acks = [-1] * 3
 
-        ### TCP Reno Fast-Restart
-        self.use_reno = False
-
         ### Receiver functionality
 
         # receive buffer
@@ -71,28 +68,28 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_disk = True
+        self.write_to_disk = False
 
         self.plot_sequence_on = False
         self.plot_rate_on = False
         self.plot_queue_on = True
 
+        file_name = "output.txt"
+        header_message = "## header message ##"
+
+        if self.plot_sequence_on:
+            file_name = "sequence_plot.txt"
+            header_message = "# Time (seconds) Sequence (number) Dropped (0 or 1) ACK (0 or 1)"
+            Sim.set_debug("Link")
+        elif self.plot_rate_on:
+            file_name = "rate_plot.txt"
+            header_message = "# Time (seconds) Size (number)"
+        elif self.plot_queue_on:
+            file_name = "queue_plot.txt"
+            header_message = "# Time (seconds) Queue Size (bytes)"
+            Sim.set_debug("Queue")
+
         if self.write_to_disk:
-            file_name = "output.txt"
-            header_message = "## header message ##"
-
-            if self.plot_sequence_on:
-                file_name = "sequence_plot.txt"
-                header_message = "# Time (seconds) Sequence (number) Dropped (0 or 1) ACK (0 or 1)"
-                Sim.set_debug("Link")
-            elif self.plot_rate_on:
-                file_name = "rate_plot.txt"
-                header_message = "# Time (seconds) Size (number)"
-            elif self.plot_queue_on:
-                file_name = "queue_plot.txt"
-                header_message = "# Time (seconds) Queue Size (bytes)"
-                Sim.set_debug("Queue")
-
             self.trace("PRINTING TO %s" % file_name)
             sys.stdout = open(file_name, 'w')
             print header_message
@@ -164,10 +161,7 @@ class TCP(Connection):
     def execute_loss_event(self, ack_loss_event=False):
         self.threshold = max(self.window / 2, self.mss)
 
-        if ack_loss_event and self.use_reno:
-            self.window /= 2
-        else:
-            self.window = self.mss
+        self.window = self.mss
 
         self.additive_increase_total = 0
         self.restarting_slow_start = True
@@ -254,19 +248,19 @@ class TCP(Connection):
                            ack_number=self.ack,
                            sent_time=current_time)
 
-        if sequence == 32000 and self.force_drop:
-            self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
-            self.plot_sequence(packet.sequence, dropped=True)
-            return
-        elif sequence == 40000 and self.force_drop:
-            self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
-            self.plot_sequence(packet.sequence, dropped=True)
-            return
-        elif sequence == 41000 and self.force_drop:
-            self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
-            self.plot_sequence(packet.sequence, dropped=True)
-            self.force_drop = False
-            return
+        # if sequence == 32000 and self.force_drop:
+        #     self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+        #     self.plot_sequence(packet.sequence, dropped=True)
+        #     return
+        # elif sequence == 40000 and self.force_drop:
+        #     self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+        #     self.plot_sequence(packet.sequence, dropped=True)
+        #     return
+        # elif sequence == 41000 and self.force_drop:
+        #     self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
+        #     self.plot_sequence(packet.sequence, dropped=True)
+        #     self.force_drop = False
+        #     return
 
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
