@@ -59,8 +59,6 @@ class TCP(Connection):
         # Fast Retransmit ACKs
         self.retransmit_acks = [-1] * 3
 
-        Sim.set_debug("Link")
-
         ### TCP Reno Fast-Restart
         self.use_reno = False
 
@@ -73,22 +71,48 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_file = True
+        self.write_to_disk = True
 
-        if self.write_to_file:
-            sys.stdout = open('output.txt', 'w')
-            print "# Time (seconds) Sequence (number) Dropped (0 or 1) ACK (0 or 1)"
+        self.plot_sequence_on = False
+        self.plot_rate_on = False
+        self.plot_queue_on = True
+
+        if self.write_to_disk:
+            file_name = "output.txt"
+            header_message = "## header message ##"
+
+            if self.plot_sequence_on:
+                file_name = "sequence_plot.txt"
+                header_message = "# Time (seconds) Sequence (number) Dropped (0 or 1) ACK (0 or 1)"
+                Sim.set_debug("Link")
+            elif self.plot_rate_on:
+                file_name = "rate_plot.txt"
+                header_message = "# Time (seconds) Size (number)"
+            elif self.plot_queue_on:
+                file_name = "queue_plot.txt"
+                header_message = "# Time (seconds) Queue Size (bytes)"
+                Sim.set_debug("Queue")
+
+            self.trace("PRINTING TO %s" % file_name)
+            sys.stdout = open(file_name, 'w')
+            print header_message
 
     ### Global Methods
     def trace(self,message):
         ''' Print debugging messages. '''
-        if not self.write_to_file:
+        if not self.plot_sequence_on and not self.plot_rate_on and not self.plot_queue_on:
             Sim.trace("TCP",message)
 
-    def plot(self, sequence_number, isACK = False, dropped=False):
+    def plot_sequence(self, sequence_number, isACK = False, dropped=False):
         message = "%i %i %d" % (sequence_number, dropped, isACK)
 
-        if self.write_to_file:
+        if self.plot_sequence_on:
+            Sim.trace("TCP", message)
+
+    def plot_rate(self, size):
+        message = "%i" % size
+
+        if self.plot_rate_on:
             Sim.trace("TCP", message)
 
     ### Congestion Control Methods
@@ -232,21 +256,21 @@ class TCP(Connection):
 
         if sequence == 32000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
-            self.plot(packet.sequence,dropped=True)
+            self.plot_sequence(packet.sequence, dropped=True)
             return
         elif sequence == 40000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
-            self.plot(packet.sequence,dropped=True)
+            self.plot_sequence(packet.sequence, dropped=True)
             return
         elif sequence == 41000 and self.force_drop:
             self.trace(">>> PACKET DROPPED: %d <<<" % sequence)
-            self.plot(packet.sequence,dropped=True)
+            self.plot_sequence(packet.sequence, dropped=True)
             self.force_drop = False
             return
 
         self.trace("%s (%d) sending TCP segment to %d for %d" % (self.node.hostname,self.source_address,self.destination_address,packet.sequence))
         self.transport.send_packet(packet)
-        self.plot(packet.sequence)
+        self.plot_sequence(packet.sequence)
 
     def handle_ack(self,packet):
         rtt = Sim.scheduler.current_time() - packet.sent_time
@@ -256,7 +280,7 @@ class TCP(Connection):
         if self.halt_if_finished():
             return
 
-        self.plot(packet.ack_number, isACK=True)
+        self.plot_sequence(packet.ack_number, isACK=True)
 
         acked_byte_count = packet.ack_number - self.sequence
         self.sequence = packet.ack_number
@@ -330,6 +354,8 @@ class TCP(Connection):
     ''' Receiver '''
 
     def handle_data(self,packet):
+        self.plot_rate(packet.length)
+
         self.trace("%s (%d) received TCP segment from %d; Seq: %d, Ack: %d" % (self.node.hostname,packet.destination_address,packet.source_address,packet.sequence,packet.ack_number))
         self.receive_buffer.put(packet.body, packet.sequence)
 

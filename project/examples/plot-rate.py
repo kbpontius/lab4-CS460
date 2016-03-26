@@ -23,14 +23,16 @@ class Plotter:
             if line.startswith("#"):
                 continue
             try:
-                t,sequence,size = line.split()
+                # t,sequence,size = line.split()
+                t,size = line.split()
             except:
                 continue
             # append data to a list of tuples
             t = float(t)
-            sequence = int(sequence)
+            # sequence = int(sequence)
             size = int(size)
-            self.data.append((t,sequence,size))
+            # self.data.append((t,sequence,size))
+            self.data.append((t,size))
             # Keep track of the minimum and maximum time seen
             if not self.min_time or t < self.min_time:
                 self.min_time = t
@@ -47,7 +49,8 @@ class Plotter:
         while i < self.max_time:
             bytes = 0
             # loop through array of data and find relevant data
-            for (t,sequence,size) in self.data:
+            # for (t,sequence,size) in self.data:
+            for (t,size) in self.data:
                 if (t >= i - 1) and (t <= i):
                     bytes += size
             # compute interval
