@@ -68,11 +68,12 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_disk = False
+        self.write_to_disk = True
 
         self.plot_sequence_on = False
         self.plot_rate_on = False
-        self.plot_queue_on = True
+        self.plot_queue_on = False
+        self.plot_window_on = False
 
         file_name = "output.txt"
         header_message = "## header message ##"
@@ -88,9 +89,12 @@ class TCP(Connection):
             file_name = "queue_plot.txt"
             header_message = "# Time (seconds) Queue Size (bytes)"
             Sim.set_debug("Queue")
+        elif self.plot_window_on:
+            file_name = "window_plot.txt"
+            header_message = "# Time (seconds) Congestion Window Size (bytes)"
 
         if self.write_to_disk:
-            self.trace("PRINTING TO %s" % file_name)
+            self.trace("PRINTING TO: %s" % file_name)
             sys.stdout = open(file_name, 'w')
             print header_message
 
@@ -110,6 +114,12 @@ class TCP(Connection):
         message = "%i" % size
 
         if self.plot_rate_on:
+            Sim.trace("TCP", message)
+
+    def plot_window(self, size):
+        message = "%i" % size
+
+        if self.plot_window_on:
             Sim.trace("TCP", message)
 
     ### Congestion Control Methods

@@ -24,11 +24,13 @@ class Plotter:
                 t,size = line.split()
             except:
                 continue
+
             t = float(t)
             try:
                 size = int(size)
             except:
                 pass
+
             self.data.append((t,size))
             if not self.min_time or t < self.min_time:
                 self.min_time = t
@@ -43,7 +45,7 @@ class Plotter:
         dropX = []
         dropY = []
         i = 0
-        max_queue = 20
+        max_queue = 100
         max = None
         for (t,size) in self.data:
             if size == 'x':
