@@ -102,6 +102,7 @@ class TCP(Connection):
     def trace(self,message):
         ''' Print debugging messages. '''
         if not self.plot_sequence_on and not self.plot_rate_on and not self.plot_queue_on:
+        if not self.plot_sequence_on and not self.plot_rate_on and not self.plot_queue_on and not self.plot_window_on:
             Sim.trace("TCP",message)
 
     def plot_sequence(self, sequence_number, isACK = False, dropped=False):
@@ -304,6 +305,8 @@ class TCP(Connection):
             self.additiveincrease_increment_cwnd(acked_byte_count)
         else:
             self.slowstart_increment_cwnd(acked_byte_count)
+
+        self.plot_window(self.window)
 
         self.send_next_packet_if_possible()
         self.calculate_rtt(rtt)
