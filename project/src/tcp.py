@@ -68,7 +68,8 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_disk = True
+        self.write_to_disk = False
+        self.plot_port_number = 2
 
         self.plot_sequence_on = False
         self.plot_rate_on = False
@@ -101,23 +102,34 @@ class TCP(Connection):
     ### Global Methods
     def trace(self,message):
         ''' Print debugging messages. '''
-        if not self.plot_sequence_on and not self.plot_rate_on and not self.plot_queue_on:
+        if self.destination_port != self.plot_port_number:
+            return
+
         if not self.plot_sequence_on and not self.plot_rate_on and not self.plot_queue_on and not self.plot_window_on:
             Sim.trace("TCP",message)
 
     def plot_sequence(self, sequence_number, isACK = False, dropped=False):
+        if self.destination_port != self.plot_port_number:
+            return
+
         message = "%i %i %d" % (sequence_number, dropped, isACK)
 
         if self.plot_sequence_on:
             Sim.trace("TCP", message)
 
     def plot_rate(self, size):
+        if self.destination_port != self.plot_port_number:
+            return
+
         message = "%i" % size
 
         if self.plot_rate_on:
             Sim.trace("TCP", message)
 
     def plot_window(self, size):
+        if self.destination_port != self.plot_port_number:
+            return
+
         message = "%i" % size
 
         if self.plot_window_on:
