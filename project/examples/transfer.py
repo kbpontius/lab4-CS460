@@ -86,16 +86,28 @@ class Main(object):
         t2 = Transport(n2)
 
         # setup application
-        tcp_flows = 2
+        tcp_flows = 5
         a1 = AppHandler(self.filename,1)
-        a2 = AppHandler(self.filename, 2)
+        a2 = AppHandler(self.filename,2)
+        a3 = AppHandler(self.filename, 3)
+        a4 = AppHandler(self.filename, 4)
+        a5 = AppHandler(self.filename, 5)
 
         # setup connection
-        c1a = TCP(t1,n1.get_address('n2'),1,n2.get_address('n1'),1,a1)
-        c2b = TCP(t2,n2.get_address('n1'), 1, n1.get_address('n2'),1,a1)
+        c1a = TCP(t1, n1.get_address('n2'), 1, n2.get_address('n1'), 1, a1)
+        c2a = TCP(t2, n2.get_address('n1'), 1, n1.get_address('n2'), 1, a1)
 
-        c1b = TCP(t1,n1.get_address('n2'),2, n2.get_address('n1'),2,a2)
-        c2a = TCP(t2,n2.get_address('n1'),2,n1.get_address('n2'),2,a2)
+        c1b = TCP(t1, n1.get_address('n2'), 2, n2.get_address('n1'), 2, a2)
+        c2b = TCP(t2, n2.get_address('n1'), 2, n1.get_address('n2'), 2, a2)
+
+        c1c = TCP(t1, n1.get_address('n2'), 3, n2.get_address('n1'), 3, a3)
+        c2c = TCP(t2, n2.get_address('n1'), 3, n1.get_address('n2'), 3, a3)
+
+        c1d = TCP(t1, n1.get_address('n2'), 4, n2.get_address('n1'), 4, a4)
+        c2d = TCP(t2, n2.get_address('n1'), 4, n1.get_address('n2'), 4, a4)
+
+        c1e = TCP(t1, n1.get_address('n2'), 5, n2.get_address('n1'), 5, a5)
+        c2e = TCP(t2, n2.get_address('n1'), 5, n1.get_address('n2'), 5, a5)
 
         # send a file
         with open(self.filename,'r') as f:
@@ -104,7 +116,10 @@ class Main(object):
                 if not data:
                     break
                 Sim.scheduler.add(delay=0, event=data, handler=c1a.send)
-                Sim.scheduler.add(delay=0, event=data, handler=c1b.send)
+                Sim.scheduler.add(delay=0.1, event=data, handler=c1b.send)
+                Sim.scheduler.add(delay=0.2, event=data, handler=c1c.send)
+                Sim.scheduler.add(delay=0.3, event=data, handler=c1d.send)
+                Sim.scheduler.add(delay=0.4, event=data, handler=c1e.send)
 
         # run the simulation
         Sim.scheduler.run()

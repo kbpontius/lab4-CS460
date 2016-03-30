@@ -39,7 +39,7 @@ class Plotter:
             if not self.max_time or t > self.max_time:
                 self.max_time = t
 
-    def plot(self):
+    def plot(self, file_name):
         """ Create a line graph of the rate over time. """
         clf()
         x = []
@@ -67,11 +67,15 @@ class Plotter:
                     max = int(rate) + 1
             i += 0.1
         
+        # Construct File Name
+        file_title,file_extension = file_name.split('.')
+        new_file_name = file_title + '.png'
+
         plot(x,y)
         xlabel('Time (seconds)')
         ylabel('Rate (Mbps)')
         ylim([0,max])
-        savefig('rate.png')
+        savefig(new_file_name)
 
 def parse_options():
         # parse options
@@ -93,4 +97,4 @@ if __name__ == '__main__':
         sys.exit()
     p = Plotter(options.file)
     p.parse()
-    p.plot()
+    p.plot(options.file)

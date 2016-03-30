@@ -68,11 +68,11 @@ class TCP(Connection):
         self.ack = 0
 
         ### FILE WRITING
-        self.write_to_disk = False
-        self.plot_port_number = 2
+        self.write_to_disk = True
+        self.plot_port_number = 5
 
         self.plot_sequence_on = False
-        self.plot_rate_on = False
+        self.plot_rate_on = True
         self.plot_queue_on = False
         self.plot_window_on = False
 
@@ -95,8 +95,10 @@ class TCP(Connection):
             header_message = "# Time (seconds) Congestion Window Size (bytes)"
 
         if self.write_to_disk:
-            self.trace("PRINTING TO: %s" % file_name)
-            sys.stdout = open(file_name, 'w')
+            file_title,file_extension = file_name.split('.')
+            new_file_name = file_title + str(self.plot_port_number) + '.' + file_extension
+            self.trace("PRINTING TO: %s" % new_file_name)
+            sys.stdout = open(new_file_name, 'w')
             print header_message
 
     ### Global Methods
