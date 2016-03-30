@@ -1,0 +1,18 @@
+#
+#  n1 --- n2 --- n4
+#         |
+#         |
+#         n3
+#
+n1 n2
+n2 n1 n3 n4
+n4 n2
+n3 n2
+
+# link configuration
+n1 n2 100pkts 10Mbps 100ms
+n2 n1 100pkts 10Mbps 100ms
+n3 n2 100pkts 10Mbps 10ms
+n2 n3 100pkts 10Mbps 10ms
+n2 n4 100pkts 10Mbps 10ms
+n4 n2 100pkts 10Mbps 10ms

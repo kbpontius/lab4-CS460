@@ -67,9 +67,12 @@ class TCP(Connection):
         # number not yet received
         self.ack = 0
 
+        ### Testing
+        self.is_aiad = False
+
         ### FILE WRITING
         self.write_to_disk = True
-        self.plot_port_number = 5
+        self.plot_port_number = 2
 
         self.plot_sequence_on = False
         self.plot_rate_on = True
@@ -184,7 +187,10 @@ class TCP(Connection):
         return self.retransmit_acks[0] == self.retransmit_acks[1] and self.retransmit_acks[0] == self.retransmit_acks[2]
 
     def execute_loss_event(self, ack_loss_event=False):
-        self.threshold = max(self.window / 2, self.mss)
+        if not self.is_aiad:
+            self.threshold = max(self.window / 2, self.mss)
+        else:
+            self.threshold -= max(self.threshold - self.mss, 0)
 
         self.window = self.mss
 

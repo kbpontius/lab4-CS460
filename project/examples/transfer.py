@@ -72,42 +72,65 @@ class Main(object):
         Sim.set_debug('TCP')
 
         # setup network
-        net = Network('../networks/one-hop.txt')
+        # net = Network('../networks/one-hop.txt')
+        net = Network('../networks/four-nodes.txt')
         net.loss(self.loss)
 
         # setup routes
         n1 = net.get_node('n1')
         n2 = net.get_node('n2')
-        n1.add_forwarding_entry(address=n2.get_address('n1'),link=n1.links[0])
-        n2.add_forwarding_entry(address=n1.get_address('n2'),link=n2.links[0])
+        n3 = net.get_node('n3')
+        n4 = net.get_node('n4')
+
+        n1.add_forwarding_entry(address=n2.get_address('n1'),link=n1.links[0])  # n1 -> n2
+        n2.add_forwarding_entry(address=n1.get_address('n2'),link=n2.links[0])  # n1 <- n2
+
+        n2.add_forwarding_entry(address=n3.get_address('n2'),link=n2.links[1])  # n2 -> n3
+        n3.add_forwarding_entry(address=n2.get_address('n3'),link=n3.links[0])  # n2 <- n3
+
+        n2.add_forwarding_entry(address=n4.get_address('n2'),link=n2.links[2])  # n2 -> n4
+        n4.add_forwarding_entry(address=n2.get_address('n4'),link=n4.links[0])  # n2 <- n4
+
+        n1.add_forwarding_entry(address=n4.get_address('n2'),link=n1.links[0])  # n1 -> n2 -> n4
+        n3.add_forwarding_entry(address=n4.get_address('n2'),link=n3.links[0])  # n3 -> n2 -> n4
+        n4.add_forwarding_entry(address=n1.get_address('n2'),link=n4.links[0])  # n4 -> n2 -> n1
+        n4.add_forwarding_entry(address=n3.get_address('n2'),link=n4.links[0])  # n4 -> n2 -> n1
 
         # setup transport
         t1 = Transport(n1)
-        t2 = Transport(n2)
+        t3 = Transport(n3)
+        t4 = Transport(n4)
 
         # setup application
-        tcp_flows = 5
+        tcp_flows = 2
         a1 = AppHandler(self.filename,1)
         a2 = AppHandler(self.filename,2)
-        a3 = AppHandler(self.filename, 3)
-        a4 = AppHandler(self.filename, 4)
-        a5 = AppHandler(self.filename, 5)
+        # a3 = AppHandler(self.filename, 3)
+        # a4 = AppHandler(self.filename, 4)
+        # a5 = AppHandler(self.filename, 5)
 
         # setup connection
-        c1a = TCP(t1, n1.get_address('n2'), 1, n2.get_address('n1'), 1, a1)
-        c2a = TCP(t2, n2.get_address('n1'), 1, n1.get_address('n2'), 1, a1)
+        # c1a = TCP(t1, n1.get_address('n2'), 1, n2.get_address('n1'), 1, a1)
+        # c2a = TCP(t2, n2.get_address('n1'), 1, n1.get_address('n2'), 1, a1)
 
-        c1b = TCP(t1, n1.get_address('n2'), 2, n2.get_address('n1'), 2, a2)
-        c2b = TCP(t2, n2.get_address('n1'), 2, n1.get_address('n2'), 2, a2)
+        ### 4-node configuration
+        c1a = TCP(t1, n1.get_address('n2'), 1, n4.get_address('n2'), 1, a1)
+        c2a = TCP(t4, n4.get_address('n2'), 1, n1.get_address('n2'), 1, a1)
 
-        c1c = TCP(t1, n1.get_address('n2'), 3, n2.get_address('n1'), 3, a3)
-        c2c = TCP(t2, n2.get_address('n1'), 3, n1.get_address('n2'), 3, a3)
+        c1b = TCP(t3, n3.get_address('n2'), 2, n4.get_address('n2'), 2, a2)
+        c2b = TCP(t4, n4.get_address('n2'), 2, n3.get_address('n2'), 2, a2)
 
-        c1d = TCP(t1, n1.get_address('n2'), 4, n2.get_address('n1'), 4, a4)
-        c2d = TCP(t2, n2.get_address('n1'), 4, n1.get_address('n2'), 4, a4)
+        # c1b = TCP(t1, n1.get_address('n2'), 2, n2.get_address('n1'), 2, a2)
+        # c2b = TCP(t2, n2.get_address('n1'), 2, n1.get_address('n2'), 2, a2)
 
-        c1e = TCP(t1, n1.get_address('n2'), 5, n2.get_address('n1'), 5, a5)
-        c2e = TCP(t2, n2.get_address('n1'), 5, n1.get_address('n2'), 5, a5)
+        # c1c = TCP(t1, n1.get_address('n2'), 3, n2.get_address('n1'), 3, a3)
+        # c2c = TCP(t2, n2.get_address('n1'), 3, n1.get_address('n2'), 3, a3)
+        #
+        # c1d = TCP(t1, n1.get_address('n2'), 4, n2.get_address('n1'), 4, a4)
+        # c2d = TCP(t2, n2.get_address('n1'), 4, n1.get_address('n2'), 4, a4)
+        #
+        # c1e = TCP(t1, n1.get_address('n2'), 5, n2.get_address('n1'), 5, a5)
+        # c2e = TCP(t2, n2.get_address('n1'), 5, n1.get_address('n2'), 5, a5)
 
         # send a file
         with open(self.filename,'r') as f:
@@ -116,10 +139,13 @@ class Main(object):
                 if not data:
                     break
                 Sim.scheduler.add(delay=0, event=data, handler=c1a.send)
-                Sim.scheduler.add(delay=0.1, event=data, handler=c1b.send)
-                Sim.scheduler.add(delay=0.2, event=data, handler=c1c.send)
-                Sim.scheduler.add(delay=0.3, event=data, handler=c1d.send)
-                Sim.scheduler.add(delay=0.4, event=data, handler=c1e.send)
+                Sim.scheduler.add(delay=0, event=data, handler=c1b.send)
+                # Sim.scheduler.add(delay=0, event=data, handler=c1a.send)
+                # Sim.scheduler.add(delay=0.1, event=data, handler=c1b.send)
+                # Sim.scheduler.add(delay=0.2, event=data, handler=c1c.send)
+                # Sim.scheduler.add(delay=0.3, event=data, handler=c1d.send)
+                # Sim.scheduler.add(delay=0.4, event=data, handler=c1e.send)
+
 
         # run the simulation
         Sim.scheduler.run()
